@@ -1202,33 +1202,54 @@ function closeLb() { document.getElementById('lb').classList.remove('show'); }
 function openEgg(e) { e.stopPropagation(); document.getElementById('egg').classList.add('show'); }
 function closeEgg() { document.getElementById('egg').classList.remove('show'); }
 
-// ===== MESSAGES =====
-const SK = 'eric520v3';
-function ld() { try { return JSON.parse(localStorage.getItem(SK)) || {em:[], mm:[], mem:[]}; } catch(e) { return {em:[], mm:[], mem:[]}; } }
-function sv(d) { try { localStorage.setItem(SK, JSON.stringify(d)); } catch(e) {} }
+// ===== SUPABASE MESSAGES =====
+const SUPABASE_URL = 'https://kdygdhghnixxuhxusbym.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_wpz-98FEUup6P_O-Bo4vfg_ziuIPP7m';
 
-function send(w) {
+async function sbFetch(method, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+    method,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': method === 'POST' ? 'return=minimal' : ''
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (method === 'GET') return res.json();
+  return res;
+}
+
+async function send(w) {
   const inp = document.getElementById(w === 'e' ? 'ei' : 'mi2');
   const txt = inp.value.trim();
   if (!txt) return;
-  const d = ld();
-  const msg = { t: txt, dt: new Date().toLocaleDateString('zh-CN'), tm: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'}) };
-  if (w === 'e') d.em.push(msg); else d.mm.push(msg);
-  sv(d); inp.value = ''; renderMsgs();
+  const now = new Date();
+  await sbFetch('POST', {
+    who: w,
+    message: txt,
+    dt: now.toLocaleDateString('zh-CN'),
+    tm: now.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})
+  });
+  inp.value = '';
+  await renderMsgs();
 }
 
-function renderMsgs() {
-  const d = ld();
-  ['e','m'].forEach(w => {
-    const msgs = w === 'e' ? d.em : d.mm;
-    const c = document.getElementById(w === 'e' ? 'em' : 'mm');
-    if (!msgs.length) {
-      c.innerHTML = `<div style="color:var(--text-light);font-size:0.83rem;font-style:italic">${w === 'e' ? '等待江老师的第一条留言...' : '等待我的第一条留言...'}</div>`;
-      return;
-    }
-    c.innerHTML = msgs.map(m => `<div class="mi"><div class="ma">${w === 'e' ? '江老师' : '🌻'}</div><div>${m.t}</div><div class="md">${m.dt} ${m.tm}</div></div>`).join('');
-    c.scrollTop = c.scrollHeight;
-  });
+async function renderMsgs() {
+  try {
+    const data = await sbFetch('GET');
+    ['e','m'].forEach(w => {
+      const msgs = data.filter(m => m.who === w);
+      const c = document.getElementById(w === 'e' ? 'em' : 'mm');
+      if (!msgs.length) {
+        c.innerHTML = `<div style="color:var(--text-light);font-size:0.83rem;font-style:italic">${w === 'e' ? '等待江老师的第一条留言...' : '等待我的第一条留言...'}</div>`;
+        return;
+      }
+      c.innerHTML = msgs.map(m => `<div class="mi"><div class="ma">${m.who === 'e' ? '江老师' : '🌻'}</div><div>${m.message}</div><div class="md">${m.dt} ${m.tm}</div></div>`).join('');
+      c.scrollTop = c.scrollHeight;
+    });
+  } catch(e) { console.log('Messages error:', e); }
 }
 
 // ===== MEMORIES =====
@@ -1277,6 +1298,8 @@ function allM() { document.getElementById('sd').value = ''; renderTl(); }
 // Init
 renderMsgs();
 renderTl();
+// Auto refresh messages every 30 seconds
+setInterval(renderMsgs, 30000);
 </script>
 </body>
 </html>
